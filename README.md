@@ -1,4 +1,4 @@
-# BIDSRWM - 铁锈战争模组汉化工具
+# BIDSRWM - 鲸雷
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Flutter Version](https://img.shields.io/badge/Flutter-3.22-blue)](https://flutter.dev)
