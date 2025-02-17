@@ -6,13 +6,11 @@ import 'package:archive/archive.dart';
 import 'package:path/path.dart' as p;
 import 'package:bidsrwm/services/translation_service.dart';
 import 'package:bidsrwm/providers/app_state.dart';
-import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 class ModProcessor {
-  static Future<String> processMod({
+  static Future<Uint8List> processMod({
     required File modFile,
-    required BuildContext context,
+    required AppState state,
     required void Function(double progress, String task) onProgress,
   }) async {
     final tempDir = await _unpackMod(modFile);
@@ -21,7 +19,6 @@ class ModProcessor {
     final iniFiles = await _findIniFiles(tempDir);
     onProgress(0.2, '找到${iniFiles.length}个配置文件');
 
-    final state = Provider.of<AppState>(context, listen: false);
     final total = iniFiles.length;
     double progress = 0;
 
@@ -33,9 +30,11 @@ class ModProcessor {
     }
 
     onProgress(0.9, '正在重新打包...');
-    final outputFile = await _repackMod(tempDir, modFile);
+    final archive = await _repackMod(tempDir, modFile);
     
-    return outputFile.path;
+    final archiveBytes = ZipEncoder().encode(archive)!;
+    await tempDir.delete(recursive: true);
+    return Uint8List.fromList(archiveBytes);
   }
 
   static Future<Directory> _unpackMod(File modFile) async {
@@ -121,7 +120,7 @@ class ModProcessor {
     throw Exception('翻译失败: 达到最大重试次数');
   }
 
-  static Future<File> _repackMod(Directory dir, File originalFile) async {
+  static Future<Archive> _repackMod(Directory dir, File originalFile) async {
     final archive = Archive();
     await for (var file in dir.list(recursive: true)) {
       if (file is File) {
@@ -133,7 +132,6 @@ class ModProcessor {
         ));
       }
     }
-    final bytes = Uint8List.fromList(ZipEncoder().encode(archive)!);
-    return File.fromRawPath(bytes);
+    return archive;
   }
 } 

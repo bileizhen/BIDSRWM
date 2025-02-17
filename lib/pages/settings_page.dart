@@ -1,10 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:bidsrwm/providers/app_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:version/version.dart';
-import 'dart:convert';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -147,37 +146,66 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '应用信息',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blueGrey.shade800,
-                ),
-          ),
-          const SizedBox(height: 16),
-          _buildVersionInfo(),
-          ListTile(
-            leading: const Icon(Icons.privacy_tip),
-            title: const Text('隐私政策'),
-            trailing: const Icon(Icons.open_in_new),
-            onTap: () => _launchUrl('https://your-domain.com/privacy'),
-          ),
+          _buildInfoHeader('应用信息'),
+          _buildVersionTile(context),
+          _buildLicenseTile(context),
+          _buildAuthorTile(),
+          _buildPrivacyTile(),
         ],
       ),
     );
   }
 
-  Widget _buildVersionInfo() {
+  Widget _buildVersionTile(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.info),
-      title: const Text('当前版本'),
-      subtitle: Text('$_version (build $_buildNumber)'),
-      trailing: _checkingUpdate 
-          ? const CircularProgressIndicator(strokeWidth: 2)
-          : IconButton(
-              icon: const Icon(Icons.update),
-              onPressed: _checkUpdate,
-            ),
+      title: const Text('版本'),
+      subtitle: Text('$_version (Build $_buildNumber)'),
+      trailing: IconButton(
+        icon: _checkingUpdate 
+            ? const CircularProgressIndicator()
+            : const Icon(Icons.update),
+        onPressed: () => _checkUpdate(context),
+      ),
+    );
+  }
+
+  Widget _buildLicenseTile(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.description),
+      title: const Text('许可证'),
+      subtitle: const Text('MIT License'),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: () => _launchUrl('https://github.com/bileizhen/BIDSRWM/blob/main/LICENSE'),
+    );
+  }
+
+  Widget _buildAuthorTile() {
+    return ListTile(
+      leading: const Icon(Icons.person),
+      title: const Text('开发者'),
+      subtitle: const Text('bileizhen'),
+      trailing: const Icon(Icons.mail),
+      onTap: () => _launchUrl('mailto:lei3140014249@163.com'),
+    );
+  }
+
+  Widget _buildPrivacyTile() {
+    return ListTile(
+      leading: const Icon(Icons.privacy_tip),
+      title: const Text('隐私政策'),
+      trailing: const Icon(Icons.open_in_new),
+      onTap: () => _launchUrl('https://github.com/bileizhen/BIDSRWM/blob/main/PRIVACY.md'),
+    );
+  }
+
+  Widget _buildInfoHeader(String title) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.blueGrey.shade800,
+          ),
     );
   }
 
@@ -207,48 +235,66 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _checkUpdate() async {
+  Future<void> _checkUpdate(BuildContext context) async {
+    if (!mounted) return;
     setState(() => _checkingUpdate = true);
+    
     try {
-      final response = await http.get(
-        Uri.parse('https://api.github.com/repos/bileizhen/BIDSRWM/releases/latest'),
-        headers: {'Accept': 'application/vnd.github.v3+json'},
-      );
-
-      final latest = jsonDecode(response.body);
-      final latestVersion = latest['tag_name'].toString().replaceFirst('v', '');
-      final current = Version.parse(_version);
-      final newer = Version.parse(latestVersion);
+      final updateInfo = await _fetchUpdateInfo();
+      if (!mounted) return;
       
-      if (current < newer) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('发现新版本'),
-            content: Text(latest['body'] ?? ''),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('取消'),
-              ),
-              TextButton(
-                onPressed: () => _launchUrl(latest['html_url']),
-                child: const Text('前往下载'),
-              ),
-            ],
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('当前已是最新版本')),
-        );
+      if (updateInfo != null) {
+        final (latestVersion, downloadUrl) = updateInfo;
+        const currentVersion = '1.2.0';
+        
+        if (latestVersion != currentVersion) {
+          _showUpdateDialog(context, latestVersion, currentVersion, downloadUrl);
+        }
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('检查更新失败: ${e.toString()}')),
+        SnackBar(content: Text('检查更新失败: ${e.toString()}'))
       );
     } finally {
-      setState(() => _checkingUpdate = false);
+      if (mounted) {
+        setState(() => _checkingUpdate = false);
+      }
     }
+  }
+
+  Future<(String, String)?> _fetchUpdateInfo() async {
+    final response = await http.get(Uri.parse(
+      'https://api.github.com/repos/bileizhen/BIDSRWM/releases/latest'
+    ));
+
+    if (response.statusCode == 200) {
+      final jsonResponse = jsonDecode(response.body);
+      return (
+        jsonResponse['tag_name'] as String,
+        jsonResponse['html_url'] as String
+      );
+    }
+    return null;
+  }
+
+  void _showUpdateDialog(BuildContext context, String latestVersion, String currentVersion, String downloadUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('发现新版本'),
+        content: Text('最新版本：$latestVersion\n当前版本：$currentVersion'),
+        actions: [
+          TextButton(
+            onPressed: () => _launchUrl(downloadUrl),
+            child: const Text('前往下载'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('稍后再说'),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -1,13 +1,19 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:bidsrwm/providers/app_state.dart';
 import 'package:path/path.dart' as p;
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -131,34 +137,76 @@ class HomePage extends StatelessWidget {
   }
 
   Future<void> _pickFile(BuildContext context) async {
-    final state = context.read<AppState>();
+    if (!mounted) return;
+    final currentContext = context;
+    context.read<AppState>();
     
     final inputFile = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['rwmod'],
     );
     
+    if (!mounted) return;
     if (inputFile != null) {
-      state.startProcessing(
-        // ignore: use_build_context_synchronously
-        context,
-        File(inputFile.files.single.path!),
-        onSuccess: (modFile) async {
-          final outputPath = await FilePicker.platform.saveFile(
-            dialogTitle: '保存汉化模组',
-            fileName: '${p.basenameWithoutExtension(inputFile.files.single.name)}_CN.rwmod',
-            type: FileType.custom,
-            allowedExtensions: ['rwmod'],
-          );
-          
+      _handleFileProcessing(currentContext, File(inputFile.files.single.path!));
+    }
+  }
+
+  Future<void> _handleFileProcessing(BuildContext context, File file) async {
+    if (!mounted) return;
+    final currentContext = context;
+    final state = context.read<AppState>();
+    
+    state.startProcessing(
+      file,
+      onSuccess: (processedBytes) async {
+        if (!mounted) return;
+        
+        final result = await showDialog<bool>(
+          context: currentContext,
+          builder: (context) => AlertDialog(
+            title: const Text('处理完成'),
+            content: const Text('请选择后续操作：'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('继续翻译下一个'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('返回主页'),
+              ),
+            ],
+          ),
+        );
+
+        if (!mounted) return;
+        
+        if (result == true) {
+          _pickFile(currentContext);
+        } else {
+          final outputPath = await _saveFile(processedBytes, file);
+          if (!mounted) return;
           if (outputPath != null) {
-            await modFile.copy(outputPath);
             state.updateStatus('保存成功！路径：$outputPath');
           }
-        },
-        onError: (e) => state.updateStatus('处理失败：$e'),
-      );
+        }
+      },
+      onError: (e) => state.updateStatus('处理失败：$e'),
+    );
+  }
+
+  Future<String?> _saveFile(Uint8List bytes, File originFile) async {
+    final outputPath = await FilePicker.platform.saveFile(
+      dialogTitle: '保存汉化模组',
+      fileName: '${p.basenameWithoutExtension(originFile.path)}_CN.rwmod',
+    );
+    
+    if (outputPath != null) {
+      await File(outputPath).writeAsBytes(bytes);
+      return outputPath;
     }
+    return null;
   }
 
   String _getProgressPhase(double progress) {

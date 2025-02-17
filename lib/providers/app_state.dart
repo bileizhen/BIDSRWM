@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/widgets.dart';
+import 'package:bidsrwm/services/file_service.dart';
+import 'dart:typed_data';
 
 class AppState extends ChangeNotifier {
   double _progress = 0;
@@ -48,12 +50,10 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateProgress(double value) {
-    // 确保在主线程更新
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _progress = value;
-      notifyListeners();
-    });
+  void updateProgress(double value, String task) {
+    _progress = value;
+    _currentTask = task;
+    notifyListeners();
   }
 
   void updateStatus(String message) {
@@ -61,14 +61,19 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startProcessing(BuildContext context, File file, 
-      {Function(File)? onSuccess, Function(String)? onError}) async {
+  Future<void> startProcessing(File file, 
+      {Function(Uint8List)? onSuccess, Function(String)? onError}) async {
     _isProcessing = true;
     _currentTask = '初始化处理流程...';
     notifyListeners();
 
     try {
-      onSuccess?.call(file);
+      final bytes = await ModProcessor.processMod(
+        modFile: file,
+        state: this,
+        onProgress: (progress, task) => updateProgress(progress, task),
+      );
+      onSuccess?.call(bytes);
     } catch (e) {
       onError?.call(e.toString());
     } finally {
