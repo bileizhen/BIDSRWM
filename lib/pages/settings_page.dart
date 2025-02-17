@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:bidsrwm/providers/app_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
-import 'package:json_annotation/json_annotation.dart';
-import 'package:semver/semver.dart';
+import 'package:version/version.dart';
+import 'dart:convert';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -64,8 +64,6 @@ class _SettingsPageState extends State<SettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildServiceSection(context, state, config),
-          const Divider(height: 40),
-          _buildAdvancedSection(context, state, config),
           const Divider(height: 40),
           _buildAppInfoSection(context),
         ],
@@ -219,8 +217,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
       final latest = jsonDecode(response.body);
       final latestVersion = latest['tag_name'].toString().replaceFirst('v', '');
+      final current = Version.parse(_version);
+      final newer = Version.parse(latestVersion);
       
-      if (semver.compare(_version, latestVersion) < 0) {
+      if (current < newer) {
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
