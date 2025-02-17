@@ -211,7 +211,7 @@ class _HomePageState extends State<HomePage> {
 
   String _getProgressPhase(double progress) {
     if (progress < 0.2) return '正在解压文件...';
-    if (progress < 0.8) return '正在翻译内容...';
+    if (progress < 0.8) return '正在翻译内容 (包含6类关键词)...';
     return '正在重新打包...';
   }
 

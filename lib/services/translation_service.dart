@@ -72,4 +72,37 @@ class TranslationService {
       throw Exception('无效的API响应格式');
     }
   }
-} 
+
+  static Future<List<String>> translateBatch(List<String> texts, String apiKey, bool useDeepSeek) async {
+    if (useDeepSeek) {
+      return _deepSeekTranslateBatch(texts, apiKey);
+    }
+    return _baiduTranslateBatch(texts);
+  }
+
+  static Future<List<String>> _deepSeekTranslateBatch(List<String> texts, String apiKey) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.deepseek.com/v1/batch_translate'),
+        headers: {'Authorization': 'Bearer $apiKey'},
+        body: jsonEncode({'texts': texts}),
+      );
+      
+      final jsonResponse = jsonDecode(response.body);
+      return (jsonResponse['translations'] as List).cast<String>();
+      
+    } catch (e) {
+      throw Exception('批量翻译失败: ${e.toString()}');
+    }
+  }
+
+  static Future<List<String>> _baiduTranslateBatch(List<String> texts) async {
+    // 暂时使用单个翻译API模拟批量翻译
+    final results = <String>[];
+    for (final text in texts) {
+      results.add(await _baiduTranslate(text));
+      await Future.delayed(const Duration(milliseconds: 100)); // 避免请求过快
+    }
+    return results;
+  }
+}

@@ -110,6 +110,9 @@ class TranslationConfig {
   bool useDeepSeek;
   String promptTemplate;
   bool debugMode;
+  int batchSize = 50; // 最大批量大小
+  int maxConcurrentFiles = 4; // 最大并行文件数
+  int requestInterval = 100; // 请求间隔(ms)
 
   TranslationConfig({
     this.apiKey = '',

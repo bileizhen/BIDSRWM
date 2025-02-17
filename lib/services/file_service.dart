@@ -19,15 +19,12 @@ class ModProcessor {
     final iniFiles = await _findIniFiles(tempDir);
     onProgress(0.2, '找到${iniFiles.length}个配置文件');
 
-    final total = iniFiles.length;
-    double progress = 0;
 
-    for (int i = 0; i < iniFiles.length; i++) {
-      onProgress(0.2 + (i/total)*0.6, '处理文件: ${p.basename(iniFiles[i].path)}');
-      await _processIniFile(iniFiles[i], state.config.apiKey, state.config.useDeepSeek);
-      progress = (i + 1) / total;
-      onProgress(0.2 + progress*0.6, '已处理 ${i+1}/$total 个文件');
-    }
+    // 并行处理文件
+    await Future.wait(
+      iniFiles.map((file) => _processIniFile(file, state.config.apiKey, state.config.useDeepSeek)),
+      eagerError: true,
+    );
 
     onProgress(0.9, '正在重新打包...');
     final archive = await _repackMod(tempDir, modFile);
@@ -62,63 +59,34 @@ class ModProcessor {
   static Future<void> _processIniFile(File file, String apiKey, bool useDeepSeek) async {
     final lines = await file.readAsLines(encoding: utf8);
     final output = <String>[];
+    final translationBuffer = <String>[];
     
     for (var line in lines) {
       output.add(line);
       
-      // 匹配需要翻译的键
-      final textMatch = RegExp(r'^(displayText|showQuickWarLogToPlayer|displayName):\s*(.+)$').firstMatch(line);
-      if (textMatch != null) {
-        final key = textMatch.group(1)!;
-        final original = textMatch.group(2)!;
-        final cleanText = _preprocessText(original);
-        final translated = await _translateWithRetry(cleanText, apiKey, useDeepSeek);
-        output.add('${key}_zh: $translated');
-        continue;
+      final match = RegExp(
+        r'^(displayText|displayName|description|displayDescription|isLockedMessage|text|showMessageToPlayer):\s*(.+)$'
+      ).firstMatch(line);
+      if (match != null) {
+        translationBuffer.add(match.group(2)!);
       }
-      
-      // 匹配描述类字段
-      final descMatch = RegExp(r'^(description|displayDescription):\s*(.+)$').firstMatch(line);
-      if (descMatch != null) {
-        final key = descMatch.group(1)!;
-        final original = descMatch.group(2)!;
-        final cleanText = _preprocessText(original);
-        final translated = await _translateWithRetry(cleanText, apiKey, useDeepSeek);
-        output.add('${key}_zh: $translated');
+    }
+
+    // 批量翻译
+    final translated = await TranslationService.translateBatch(translationBuffer, apiKey, useDeepSeek);
+    
+    // 重新遍历插入翻译结果
+    var transIndex = 0;
+    for (var line in lines) {
+      if (RegExp(r'^(displayText|displayName|description):').hasMatch(line)) {
+        output.insert(output.indexOf(line) + 1, '${_getKey(line)}_zh: ${translated[transIndex++]}');
       }
     }
     
-    await file.writeAsString(output.join('\n'), encoding: utf8);
+    await file.writeAsString(output.join('\n'));
   }
 
-  static String _preprocessText(String text) {
-    final cleaned = text
-        .replaceAll(RegExp(r'[^\x00-\x7F]'), '')
-        .replaceAll(RegExp(r'[<>{}]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-        
-    return cleaned.substring(0, cleaned.length.clamp(0, 2000));
-  }
-
-  static Future<String> _translateWithRetry(String text, String apiKey, bool useDeepSeek) async {
-    int retryCount = 0;
-    const maxRetries = 3;
-    
-    while (retryCount < maxRetries) {
-      try {
-        return await TranslationService.translate(text, apiKey, useDeepSeek);
-      } catch (e) {
-        if (e.toString().contains('20005')) {
-          retryCount++;
-          await Future.delayed(Duration(seconds: retryCount));
-          continue;
-        }
-        rethrow;
-      }
-    }
-    throw Exception('翻译失败: 达到最大重试次数');
-  }
+  static String _getKey(String line) => '${line.split(':').first.trim()}_zh';
 
   static Future<Archive> _repackMod(Directory dir, File originalFile) async {
     final archive = Archive();
