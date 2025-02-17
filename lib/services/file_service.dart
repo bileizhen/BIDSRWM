@@ -29,7 +29,7 @@ class ModProcessor {
     onProgress(0.9, '正在重新打包...');
     final archive = await _repackMod(tempDir, modFile);
     
-    final archiveBytes = ZipEncoder().encode(archive)!;
+    final archiveBytes = ZipEncoder().encode(archive);
     await tempDir.delete(recursive: true);
     return Uint8List.fromList(archiveBytes);
   }
