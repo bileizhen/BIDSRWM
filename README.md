@@ -5,6 +5,8 @@
 [![DeepSeek Powered](https://img.shields.io/badge/Powered%20By-DeepSeek-2B7FFF)](https://deepseek.com)
 [![GitHub Release](https://img.shields.io/github/v/release/bileizhen/BIDSRWM)](https://github.com/bileizhen/BIDSRWM/releases)
 
+![6528869a31d5ed409168a1f6b539ab5c](https://github.com/user-attachments/assets/f079c1bb-f10c-4b67-9faf-3201efea95d6)
+
 专业的《铁锈战争(Rusted Warfare)》模组汉化工具，基于Flutter构建的跨平台解决方案，集成DeepSeek大模型实现上下文感知翻译。
 
 ![应用截图](assets/screenshot.png) <!-- 需要添加实际截图 -->
